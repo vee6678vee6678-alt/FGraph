@@ -56,9 +56,9 @@ try:
             pts_low = (open_p - df.loc[j, 'Low']) * 100000
             
             if h_time == "-" and pts_high >= 100:
-                h_time = str(df.loc[j, 'TimeZoneThai'])
+                h_time = df.loc[j, 'TimeZoneThai']
             if l_time == "-" and pts_low >= 100:
-                l_time = str(df.loc[j, 'TimeZoneThai'])
+                l_time = df.loc[j, 'TimeZoneThai']
             if h_time != "-" and l_time != "-":
                 break
                 
@@ -72,18 +72,30 @@ try:
     c1, c2 = st.columns([3, 2])
 
     with c1:
-        st.markdown("### 📈 กราฟแท่งเทียน (คลิก/ชี้ที่แท่งเพื่อมาร์คดูเวลาไทย)")
+        st.markdown("### 📈 กราฟแท่งเทียน (คลิกที่แท่งเพื่อดูเวลาชนะ 100 จุด)")
         
-        # ปรับแต่งข้อความตอนเมาส์ชี้หรือคลิก (Hovertext) ให้โชว์เวลาไทยเด่น ๆ
+        # ปรับแต่งข้อความป๊อปอัปตอนชี้หรือคลิกตามเงื่อนไขของคุณวีรพันธ์
         hover_texts = []
         for idx, row in df.iterrows():
-            text = f"⏰ เวลาไทย: {row['TimeZoneThai']}<br>🟢 Open: {row['Open']}<br>🔴 Close: {row['Close']}<br>🔼 High: {row['High']}<br>🔽 Low: {row['Low']}"
+            # แปลงค่าถ้าไม่ชนะ (-) ให้กลายเป็น No ตามบรีฟ
+            buy_result = f"Buy = {row['Buy Target (100 pts) at']}" if row['Buy Target (100 pts) at'] != "-" else "Buy = No"
+            sell_result = f"Sell = {row['Sell Target (100 pts) at']}" if row['Sell Target (100 pts) at'] != "-" else "Sell = No"
+            
+            text = (
+                f"⏰ แท่งเวลาไทย: {row['TimeZoneThai']}<br>"
+                f"--------------------<br>"
+                f"🎯 {buy_result}<br>"
+                f"🎯 {sell_result}<br>"
+                f"--------------------<br>"
+                f"🟢 Open: {row['Open']} | 🔴 Close: {row['Close']}<br>"
+                f"🔼 High: {row['High']} | 🔽 Low: {row['Low']}"
+            )
             hover_texts.append(text)
 
         fig = go.Figure(data=[go.Candlestick(
             x=df['TimeZoneThai'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
             increasing_line_color='#26a69a', decreasing_line_color='#ef5350', name="Candle",
-            text=hover_texts, hoverinfo='text' # สั่งให้โชว์เฉพาะข้อความที่เราจัดไว้ตอนคลิก/ชี้
+            text=hover_texts, hoverinfo='text' # สั่งให้โชว์กล่องข้อความที่เราแต่งเอง
         )])
         
         fig.update_layout(
@@ -92,11 +104,10 @@ try:
             xaxis_rangeslider_visible=False, 
             height=600, 
             template="plotly_dark",
-            hovermode='x unified', # เวลาชี้จะขึ้นเส้นประแนวดิ่งช่วยมาร์คสายตา
-            clickmode='event+select' # เปิดระบบเลือกและมาร์คจุดเวลาคลิก
+            hovermode='x unified',
+            clickmode='event+select'
         )
         
-        # แสดงผลกราฟแบบเปิดกล่องเครื่องมือเสริม (ช่วยซูม ช่วยแคปภาพ ช่วยมาร์คจุด)
         st.plotly_chart(fig, use_container_width=True)
 
     with c2:
@@ -104,7 +115,7 @@ try:
         show_cols = ['TimeZoneThai', 'Open', 'High', 'Low', 'Close', 'Buy Target (100 pts) at', 'Sell Target (100 pts) at']
         st.dataframe(df[show_cols], height=550, use_container_width=True)
 
-    st.success("✨ อัปเกรดระบบกราฟคลิกดูเวลาไทยเรียบร้อยแล้วครับ!")
+    st.success("✨ อัปเดตระบบมาร์คเวลาเป้าหมาย 100 จุดบนกราฟแท่งเทียนเรียบร้อยครับ!")
 
 except Exception as err:
     st.error(f"❌ เกิดข้อผิดพลาดในระบบตรวจจับตาราง: {err}")
