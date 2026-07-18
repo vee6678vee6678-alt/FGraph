@@ -8,32 +8,46 @@ st.set_page_config(layout="wide")
 st.title("📊 Forex Candlestick & Target 100 Points Analyzer (Live)")
 st.subheader("วิเคราะห์แท่งเทียนและคำนวณเป้าหมาย 100 จุด ดึงข้อมูลสดจาก Google Sheet อัตโนมัติ")
 
-# ลิงก์ดึงข้อมูล CSV ของชีท Master (ดึงแบบไม่ใช้แคชเพื่อให้ได้ข้อมูลสดใหม่เสมอ)
-sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv&gid=1014151853"
+# เปลี่ยนลิงก์ดึงข้อมูล CSV ใหม่ โดยเจาะจงให้โหลดแผ่นงานแรกสุดของไฟล์โดยตรง ป้องกันข้อผิดพลาด
+sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv"
 
 try:
-    # อ่านข้อมูลโดยข้ามแถวแรก (แถวหัวตารางตัวหนังสือ) เพื่อให้เหลือแต่ตัวเลขราคาส่วนข้อมูลเพียวๆ
-    df_raw = pd.read_csv(sheet_url, skiprows=1, header=None)
+    # อ่านข้อมูลสดจากตารางโดยตรง
+    df_raw = pd.read_csv(sheet_url, header=None)
     
-    # ถ้าข้อมูลส่งมารวมกันเป็น 1 คอลัมน์ ให้แยกออกจากกันด้วยเครื่องหมายคอมมา ,
+    # ถ้าหากข้อมูลที่ดึงมามีแถวหรือคอลัมน์ไม่พอ หรือยุบรวมกัน ให้กระจายคอลัมน์อัตโนมัติ
     if df_raw.shape[1] == 1:
         df_raw = df_raw[0].str.split(',', expand=True)
         
-    # สร้างตารางใหม่โดยดึงจากตำแหน่งลำดับคอลัมน์จริง (คอลัมน์ A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7)
+    # ส่องหาแถวแรกที่เป็นตัวเลขราคาจริง โดยข้ามแถวหัวข้อที่เป็นตัวหนังสือทิ้งไปโดยไม่สนชื่อ
+    start_idx = 0
+    for idx in range(len(df_raw)):
+        try:
+            # ลองแปลงคอลัมน์ C (พิกัดตำแหน่งที่ 2) ให้เป็นตัวเลขดู
+            float(df_raw.iloc[idx, 2])
+            start_idx = idx
+            break
+        except:
+            continue
+            
+    # ตัดเอาเฉพาะแถวข้อมูลตัวเลขเป็นต้นไปมาใช้งาน
+    df_raw = df_raw.iloc[start_idx:].reset_index(drop=True)
+
+    # ประกอบร่างสร้างตารางใหม่ อ้างอิงตามลำดับคอลัมน์จริงใน Google Sheet (A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7)
     df = pd.DataFrame()
     df['Date'] = df_raw[0].astype(str)
     df['TimeZoneForex'] = df_raw[1].astype(str)
-    df['Open'] = pd.to_numeric(df_raw[2], errors='coerce')   # คอลัมน์ C (Open)
-    df['High'] = pd.to_numeric(df_raw[3], errors='coerce')   # คอลัมน์ D (High)
-    df['Low'] = pd.to_numeric(df_raw[4], errors='coerce')    # คอลัมน์ E (Low)
-    df['Close'] = pd.to_numeric(df_raw[5], errors='coerce')  # คอลัมน์ F (Close)
+    df['Open'] = pd.to_numeric(df_raw[2], errors='coerce')   # ราคา Open (คอลัมน์ C)
+    df['High'] = pd.to_numeric(df_raw[3], errors='coerce')   # ราคา High (คอลัมน์ D)
+    df['Low'] = pd.to_numeric(df_raw[4], errors='coerce')    # ราคา Low (คอลัมน์ E)
+    df['Close'] = pd.to_numeric(df_raw[5], errors='coerce')  # ราคา Close (คอลัมน์ F)
     df['Volume'] = df_raw[6].astype(str)
-    df['TimeZoneThai'] = df_raw[7].astype(str)               # คอลัมน์ H (เวลาไทย)
+    df['TimeZoneThai'] = df_raw[7].astype(str)               # เวลาไทย (คอลัมน์ H)
     
-    # ลบแถวที่เป็นค่าว่างออกเพื่อความแม่นยำในการคำนวณ
+    # ลบแถวเสียหรือค่าว่างที่ปนมาทิ้ง
     df = df.dropna(subset=['Open', 'High', 'Low', 'Close']).reset_index(drop=True)
 
-    # 2. ลอจิกการคำนวณหาเวลาที่ชนเป้าหมาย 100 จุดจากราคา Open (สูตรคูณ 100,000)
+    # 2. ลоจิกคำนวณเป้าหมาย 100 จุดจากราคา Open วิ่งเช็กไปทีละแท่งข้างหน้า (*100,000)
     high_targets = []
     low_targets = []
 
@@ -41,7 +55,6 @@ try:
         open_p = df.loc[i, 'Open']
         h_time, l_time = "-", "-"
         
-        # วิ่งหาแท่งถัด ๆ ไปเพื่อเช็กระยะจุด
         for j in range(i, len(df)):
             pts_high = (df.loc[j, 'High'] - open_p) * 100000
             pts_low = (open_p - df.loc[j, 'Low']) * 100000
@@ -56,11 +69,10 @@ try:
         high_targets.append(h_time)
         low_targets.append(l_time)
 
-    # บันทึกผลลัพธ์ลงคอลัมน์ใหม่
     df['Buy Target (100 pts) at'] = high_targets
     df['Sell Target (100 pts) at'] = low_targets
 
-    # 3. จัดสัดส่วนแสดงผลแยกซ้าย-ขวาบนแดชบอร์ด
+    # 3. แบ่งหน้าจอแสดงผลแดชบอร์ด
     c1, c2 = st.columns([3, 2])
 
     with c1:
@@ -83,7 +95,7 @@ try:
         show_cols = ['TimeZoneThai', 'Open', 'High', 'Low', 'Close', 'Buy Target (100 pts) at', 'Sell Target (100 pts) at']
         st.dataframe(df[show_cols], height=530, use_container_width=True)
 
-    st.success("✨ เชื่อมต่อ Google Sheet เรียบร้อย! ต่อไปข้อมูลจะอัปเดตตามชีทอัตโนมัติทุกวันแล้วครับ")
+    st.success("✨ ลิงก์ตรงสำเร็จ! ระบบจะดึงข้อมูลราคาล่าสุดมาอัปเดตให้อัตโนมัติทุกวันแล้วครับ")
 
 except Exception as err:
-    st.error(f"❌ เกิดข้อผิดพลาดในระบบตรวจจับตาราง: {err}")
+    st.error(f"❌ กำลังรอข้อมูลอัปเดตที่สมบูรณ์จากตาราง: {err}")
