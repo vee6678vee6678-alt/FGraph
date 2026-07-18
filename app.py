@@ -22,7 +22,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("📊 Forex Pro Candlestick & Trend Analyzer")
-st.subheader("ระบบคัดกรองเวลา: จิ้มแท่งเทียนเพื่อเปิด/ปิดป้ายข้อมูลล็อกค้าง (เวอร์ชันตัวอักษรใหญ่พิเศษอ่านง่าย)")
+st.subheader("ระบบคัดกรองเวลา: จิ้มแท่งเทียนเพื่อเปิด/ปิดป้ายข้อมูลล็อกค้าง (เวอร์ชันถอดเส้นกริดพื้นหลัง)")
 
 # ลิงก์ดึงข้อมูล CSV ของชีท Master
 sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv"
@@ -83,7 +83,7 @@ try:
     df['Buy Target (100 pts) at'] = high_targets
     df['Sell Target (100 pts) at'] = low_targets
 
-    # 3. เตรียมข้อมูลแปลงเป็น JSON (แยกลอจิกสลับฟันปลา บน/ล่าง ล่วงหน้า)
+    # 3. เตรียมข้อมูลแปลงเป็น JSON (ป้ายข้อความฟันปลาตัวใหญ่พิเศษ)
     chart_data = []
     for idx, row in df.iterrows():
         self_time = f"T: {row['TimeZoneThai']}" 
@@ -92,7 +92,6 @@ try:
         
         label_text = f"{self_time}<br>{buy_res}<br>{sell_res}"
         
-        # ลоจิกฟันปลา (บน/ล่าง) เพิ่มระยะห่างเว้นบรรทัดอีกนิดเพื่อความชัดเจนตอนขยายใหญ่
         if idx % 2 == 0:
             target_y = float(row['High']) + 0.00015
             pos_text = "top center"
@@ -113,7 +112,7 @@ try:
     
     json_data = json.dumps(chart_data)
 
-    # 4. ส่งข้อมูลเข้าเอนจิ้นกราฟด้วย JavaScript (ปรับขนาดข้อความจัมโบ้เลเวล 16)
+    # 4. ส่งข้อมูลเข้าเอนจิ้นกราฟด้วย JavaScript (ปิดเส้นกริดพื้นหลังถาวร)
     html_code = r"""
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
     <div id="chart-container" style="width: 100%; height: 620px; background-color: #FFFFFF;"></div>
@@ -139,7 +138,6 @@ try:
             hoverinfo: 'none'
         };
         
-        // 🚨 จุดแก้ไข: ขยายขนาดฟอนต์บนกราฟเพิ่มเป็นขนาด 16 (size: 16) ตัวใหญ่ หนา ดำเข้มสะใจมาก
         const traceLabels = {
             x: xData,
             y: activeY, 
@@ -154,8 +152,9 @@ try:
         const layout = {
             dragmode: 'pan',
             margin: {l: 50, r: 10, t: 30, b: 40},
-            xaxis: {rangeslider: {visible: false}, gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'},
-            yaxis: {gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'},
+            // 🚨 จุดแก้ไข: สั่งให้ showgrid: false เพื่อถอดเส้นกริดตารางสีเทาทั้งหมดออกไปจากหน้าจอ
+            xaxis: {rangeslider: {visible: false}, showgrid: false, tickcolor: '#000', color: '#000'},
+            yaxis: {showgrid: false, tickcolor: '#000', color: '#000'},
             plot_bgcolor: '#FFFFFF',
             paper_bgcolor: '#FFFFFF',
             shapes: []
@@ -179,13 +178,13 @@ try:
                 activeY[pointIndex] = item.y_pos;
                 activePositions[pointIndex] = item.text_pos;
                 
-                // เส้นมาร์คประแนวตั้งแบบบางเฉียบและจางมาก (0.8px) ไม่ทับตัวหนังสือแกนล่าง
+                // เส้นมาร์คประแนวตั้งบางเฉียบ คราวนี้จะลอยเด่นชัดเจนเพราะไม่มีเส้นกริดมากวนใจแล้วครับ
                 selectedShapes[pointIndex] = {
                     type: 'line',
                     x0: clickedX, x1: clickedX, yref: 'paper', y0: 0, y1: 1,
                     line: { 
-                        color: 'rgba(0, 86, 179, 0.2)', 
-                        width: 0.8, 
+                        color: 'rgba(0, 86, 179, 0.25)', // เพิ่มความเข้มขึ้นอีกนิดเพื่อให้เห็นชัดบนพื้นขาวโล่ง
+                        width: 0.9, 
                         dash: 'dash' 
                     }
                 };
@@ -210,7 +209,7 @@ try:
     
     # เรนเดอร์ลงเว็บแอป
     components.html(html_code, height=640, scrolling=False)
-    st.markdown("<p style='color:#000; font-size:16px; font-weight:bold;'>💡 อัปเดตแล้ว: ป้ายข้อความขนาดใหญ่จัมโบ้ (Size 16) | T = เวลาแท่ง | B = เวลาชนะ Buy | S = เวลาชนะ Sell</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#000; font-size:16px; font-weight:bold;'>💡 ปรับปรุงแล้ว: ลบเส้นกริดตารางพื้นหลังออกเรียบร้อย หน้าจอสะอาดตา มาร์คแท่งชัดเจนไม่สับสนครับ</p>", unsafe_allow_html=True)
 
 except Exception as err:
     st.error(f"❌ เกิดข้อผิดพลาดในระบบตรวจจับตาราง: {err}")
