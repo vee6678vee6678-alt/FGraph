@@ -90,7 +90,6 @@ try:
         buy_res = f"B: {row['Buy Target (100 pts) at']}" if row['Buy Target (100 pts) at'] != "-" else "B: No"
         sell_res = f"S: {row['Sell Target (100 pts) at']}" if row['Sell Target (100 pts) at'] != "-" else "S: No"
         
-        # ป้ายข้อมูล 3 บรรทัด
         label_text = f"{self_time}<br>{buy_res}<br>{sell_res}"
         
         chart_data.append({
@@ -104,13 +103,14 @@ try:
     
     json_data = json.dumps(chart_data)
 
-    # 4. เขียนชุดคำสั่ง HTML + JS แก้ไขปีกกาหลุดเรียบร้อย สมบูรณ์แบบ
-    html_code = f"""
+    # 4. ใช้โหมดข้อความดิบ (Raw String) เพื่อไม่ให้ระบบ Python ยุ่งกับปีกกา ป้องกันเออเร่อเด็ดขาด
+    html_code = r"""
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
     <div id="chart-container" style="width: 100%; height: 620px; background-color: #FFFFFF;"></div>
     
     <script>
-        const rawData = {json_data};
+        // ดึงข้อมูลจากฝั่ง Python มาใส่ตัวแปร JS
+        const rawData = JSON_DATA_PLACEHOLDER;
         
         const xData = rawData.map(d => d.time);
         const openData = rawData.map(d => d.open);
@@ -119,67 +119,65 @@ try:
         const closeData = rawData.map(d => d.close);
         const textLabels = rawData.map(d => d.label);
         
-        // 1. ตัวกราฟแท่งเทียนสีมาตรฐานสากล (แก้ไขโครงสร้างปีกกาเรียบร้อย)
-        const traceCandle = {{
+        const traceCandle = {
             x: xData, open: openData, high: highData, low: lowData, close: closeData,
             type: 'candlestick',
-            increasing: {{line: {{color: '#00a087', width: 2.5}}, fillcolor: '#00a087'}},
-            decreasing: {{line: {{color: '#dc3545', width: 2.5}}, fillcolor: '#dc3545'}},
+            increasing: {line: {color: '#00a087', width: 2.5}, fillcolor: '#00a087'},
+            decreasing: {line: {color: '#dc3545', width: 2.5}, fillcolor: '#dc3545'},
             hoverinfo: 'none'
-        }};
+        };
         
-        // 2. ป้ายข้อความบนหัวแท่ง ปรับขนาดใหญ่ (size: 12) สีดำเข้มหนาชัดเจน
-        const traceLabels = {{
+        const traceLabels = {
             x: xData,
             y: highData.map(h => h + 0.0001), 
             mode: 'text',
             text: textLabels,
             textposition: 'top center',
-            textfont: {{color: '#000000', size: 12, family: 'sans-serif', weight: 'bold'}},
+            textfont: {color: '#000000', size: 12, family: 'sans-serif', weight: 'bold'},
             hoverinfo: 'none',
             showlegend: false
-        }};
+        };
         
-        const layout = {{
+        const layout = {
             dragmode: 'pan',
-            margin: {{l: 50, r: 10, t: 15, b: 40}},
-            xaxis: {{rangeslider: {{visible: false}}, gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'}},
-            yaxis: {{gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'}},
+            margin: {l: 50, r: 10, t: 15, b: 40},
+            xaxis: {rangeslider: {visible: false}, gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'},
+            yaxis: {gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'},
             plot_bgcolor: '#FFFFFF',
             paper_bgcolor: '#FFFFFF',
             shapes: []
-        }};
+        };
         
-        const config = {{responsive: true, displayModeBar: false}};
+        const config = {responsive: true, displayModeBar: false};
         const chartDiv = document.getElementById('chart-container');
         
         Plotly.newPlot(chartDiv, [traceCandle, traceLabels], layout, config);
         
-        // 3. ระบบคลิกล็อกแท่ง เส้นประสีน้ำเงินเข้มหนาชัดเจน
-        chartDiv.on('plotly_click', function(data){{{
+        // ระบบคลิกล็อกแท่ง เส้นประสีน้ำเงินเข้มหนาชัดเจน
+        chartDiv.on('plotly_click', function(data){
             if(!data || !data.points) return;
             const clickedX = data.points[0].x;
             
-            const highlightShape = {{
+            const highlightShape = {
                 type: 'line',
                 x0: clickedX,
                 x1: clickedX,
                 yref: 'paper',
                 y0: 0,
                 y1: 1,
-                line: {{
+                line: {
                     color: '#0056b3',
                     width: 3,
                     dash: 'dash'
-                }}
-            }};
+                }
+            };
             
-            Plotly.relayout(chartDiv, {{shapes: [highlightShape]}});
-        }}});
+            Plotly.relayout(chartDiv, {shapes: [highlightShape]});
+        });
     </script>
-    """
+    """.replace("JSON_DATA_PLACEHOLDER", json_data) # แทนที่ข้อมูลแบบปลอดภัยแทน f-string
     
-    # รันโค้ดลงเว็บ
+    # เรนเดอร์ลงเว็บแอป
     components.html(html_code, height=640, scrolling=False)
     st.markdown("<p style='color:#000; font-size:15px;'>💡 ข้อมูลบนหัวแท่งเทียน: T = เวลาแท่งเทียน | B = เวลาชนะ Buy | S = เวลาชนะ Sell</p>", unsafe_allow_html=True)
 
