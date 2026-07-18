@@ -1,14 +1,29 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit.components.v1 as components
 import json
 
-# 1. ตั้งค่าหน้าเว็บให้แสดงผลเต็มพื้นที่จอ (เหมาะกับมือถือมาก)
+# 1. ตั้งค่าหน้าเว็บกว้างเต็มจอ (ปรับโทนธีมสว่างในแอป)
 st.set_page_config(layout="wide", page_title="Forex Live Chart Pro")
 
+# บังคับปรับสไตล์พื้นหลังหน้าเว็บ Streamlit ให้เป็นสีขาวและตัวอักษรดำเข้มสะใจ
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #FFFFFF;
+        color: #000000;
+    }
+    h1, h3, p, span {
+        color: #000000 !important;
+        font-weight: bold !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 st.title("📊 Forex Pro Candlestick & Trend Analyzer")
-st.subheader("แสดงผลเวลาแท่ง และเวลาชนะ 100 จุด บนหัวแท่งเทียนโดยตรง (จิ้มเพื่อล็อกแท่งค้างดูเทรนด์)")
+st.subheader("แสดงผลเวลาแท่ง และเวลาชนะ 100 จุด บนหัวแท่งเทียนโดยตรง (โหมดพื้นหลังขาว คมชัดสูง)")
 
 # ลิงก์ดึงข้อมูล CSV ของชีท Master
 sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv"
@@ -69,14 +84,14 @@ try:
     df['Buy Target (100 pts) at'] = high_targets
     df['Sell Target (100 pts) at'] = low_targets
 
-    # 3. เตรียมข้อมูลแปลงเป็น JSON (เพิ่มตัวแปรเวลาของแท่งเทียนลงไปบนป้าย)
+    # 3. เตรียมข้อมูลแปลงเป็น JSON (ข้อความตัวใหญ่ คมชัด)
     chart_data = []
     for idx, row in df.iterrows():
-        self_time = f"T:{row['TimeZoneThai']}" # เวลาตัวมันเอง
-        buy_res = f"B:{row['Buy Target (100 pts) at']}" if row['Buy Target (100 pts) at'] != "-" else "B:No"
-        sell_res = f"S:{row['Sell Target (100 pts) at']}" if row['Sell Target (100 pts) at'] != "-" else "S:No"
+        self_time = f"T: {row['TimeZoneThai']}" 
+        buy_res = f"B: {row['Buy Target (100 pts) at']}" if row['Buy Target (100 pts) at'] != "-" else "B: No"
+        sell_res = f"S: {row['Sell Target (100 pts) at']}" if row['Sell Target (100 pts) at'] != "-" else "S: No"
         
-        # ประกอบร่างป้าย 3 บรรทัด (เวลาแท่ง -> เวลา Buy -> เวลา Sell)
+        # ป้ายข้อมูล 3 บรรทัด
         label_text = f"{self_time}<br>{buy_res}<br>{sell_res}"
         
         chart_data.append({
@@ -90,10 +105,10 @@ try:
     
     json_data = json.dumps(chart_data)
 
-    # 4. เขียนชุดคำสั่ง HTML + JS บังคับให้กราฟวาดข้อความค้างไว้บนหัวแท่งเทียน
+    # 4. เขียนชุดคำสั่ง HTML + JS ปรับหน้าจอให้เป็นสีขาวสว่างและตัวหนังสือสีดำใหญ่ชัดเจน
     html_code = f"""
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
-    <div id="chart-container" style="width: 100%; height: 620px;"></div>
+    <div id="chart-container" style="width: 100%; height: 620px; background-color: #FFFFFF;"></div>
     
     <script>
         const rawData = {json_data};
@@ -105,35 +120,34 @@ try:
         const closeData = rawData.map(d => d.close);
         const textLabels = rawData.map(d => d.label);
         
-        // 1. ตัวกราฟแท่งเทียนหลัก
+        // 1. ตัวกราฟแท่งเทียนสีมาตรฐานสากล
         const traceCandle = {{
             x: xData, open: openData, high: highData, low: lowData, close: closeData,
             type: 'candlestick',
-            increasing: {{line: {{color: '#26a69a', width: 2}}}},
-            decreasing: {{line: {{color: '#ef5350', width: 2}}}},
-            hoverinfo: 'none',
-            name: 'Forex'
+            increasing: {{line: {{color: '#00a087', width: 2.5}}, fillcolor: '#00a087'}, // เขียวคมชัด
+            decreasing: {{line: {{color: '#dc3545', width: 2.5}}, fillcolor: '#dc3545'}, // แดงคมชัด
+            hoverinfo: 'none'
         }};
         
-        // 2. ตัวเลเยอร์พิเศษโชว์ค่าข้อความ T:เวลา / B:เวลา / S:เวลา ลอยอยู่บนจุด High
+        // 2. ป้ายข้อความบนหัวแท่ง ปรับขนาดใหญ่ขึ้น (size: 12) และเป็นสีดำเข้มสนิท (#000000) อ่านง่ายมาก
         const traceLabels = {{
             x: xData,
             y: highData.map(h => h + 0.0001), 
             mode: 'text',
             text: textLabels,
             textposition: 'top center',
-            textfont: {{color: '#00ffcc', size: 9, family: 'sans-serif'}},
+            textfont: {{color: '#000000', size: 12, family: 'sans-serif', weight: 'bold'}},
             hoverinfo: 'none',
             showlegend: false
         }};
         
         const layout = {{
             dragmode: 'pan',
-            margin: {{l: 45, r: 10, t: 10, b: 40}},
-            xaxis: {{rangeslider: {{visible: false}}, gridcolor: '#222', tickcolor: '#fff', color: '#fff'}},
-            yaxis: {{gridcolor: '#222', tickcolor: '#fff', color: '#fff'}},
-            plot_bgcolor: '#111',
-            paper_bgcolor: '#111',
+            margin: {{l: 50, r: 10, t: 15, b: 40}},
+            xaxis: {{rangeslider: {{visible: false}}, gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'}},
+            yaxis: {{gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'}},
+            plot_bgcolor: '#FFFFFF',  // พื้นหลังกราฟสีขาว
+            paper_bgcolor: '#FFFFFF', // พื้นหลังกระดาษสีขาว
             shapes: []
         }};
         
@@ -142,7 +156,7 @@ try:
         
         Plotly.newPlot(chartDiv, [traceCandle, traceLabels], layout, config);
         
-        // 3. ระบบคลิกแล้วสร้างเส้นประไฮไลต์ล็อกค้างไว้ที่แท่งนั้น
+        // 3. ระบบคลิกล็อกแท่ง เปลี่ยนเป็นเส้นประสีน้ำเงินเข้มหนาชัดเจน
         chartDiv.on('plotly_click', function(data){{
             if(!data || !data.points) return;
             const clickedX = data.points[0].x;
@@ -155,9 +169,9 @@ try:
                 y0: 0,
                 y1: 1,
                 line: {{
-                    color: '#ffcc00',
-                    width: 2,
-                    dash: 'dashdot'
+                    color: '#0056b3', // สีน้ำเงินเข้มเข้มข้น ตัดกับสีขาวชัดเจน
+                    width: 3,
+                    dash: 'dash'
                 }}
             }};
             
@@ -168,7 +182,7 @@ try:
     
     # รันโค้ดลงเว็บ
     components.html(html_code, height=640, scrolling=False)
-    st.info("💡 ข้อมูลบนหัวแท่งเทียน: T = เวลาตัวมันเอง | B = เวลาชนะ Buy | S = เวลาชนะ Sell")
+    st.markdown("<p style='color:#000; font-size:15px;'>💡 ข้อมูลบนหัวแท่งเทียน: T = เวลาแท่งเทียน | B = เวลาชนะ Buy | S = เวลาชนะ Sell</p>", unsafe_allow_html=True)
 
 except Exception as err:
     st.error(f"❌ เกิดข้อผิดพลาดในระบบตรวจจับตาราง: {err}")
