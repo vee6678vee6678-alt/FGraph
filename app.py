@@ -1,9 +1,15 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import requests
+import io
 
 # 1. ตั้งค่าหน้าเว็บให้แสดงแบบกว้างเต็มจอ
 st.set_page_config(layout="wide")
+
+# สั่งล้างแคชระบบ Streamlit ทุกรอบที่มีการเปิดหน้าเว็บ เพื่อป้องกันการจำโค้ดเก่าที่มี Error
+st.cache_data.clear()
 
 st.title("📊 Forex Candlestick & Target 100 Points Analyzer (Live Data)")
 st.subheader("วิเคราะห์แท่งเทียนและคำนวณเป้าหมาย 100 จุด ดึงข้อมูลสดจาก Google Sheet")
@@ -11,27 +17,36 @@ st.subheader("วิเคราะห์แท่งเทียนและค
 # ลิงก์ดึงข้อมูล CSV ของชีท Master
 sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv&gid=1014151853"
 
-def load_data_robust(url):
-    # อ่านข้อมูลดิบทั้งหมดเข้ามาเป็นตัวอักษรก่อน
-    raw_df = pd.read_csv(url, header=None)
+def load_data_final(url):
+    # ใช้ requests ไปดาวน์โหลดข้อมูลดิบตรงๆ จาก Google Sheet ป้องกันการล็อกพารามิเตอร์
+    response = requests.get(url)
+    response.encoding = 'utf-8'
     
-    # กรณีพิเศษ: ถ้าระบบส่งข้อมูลมาเป็นคอลัมน์เดียวพืด ให้แตกคอลัมน์ด้วยเครื่องหมายคอมมา ,
-    if raw_df.shape[1] == 1:
-        raw_df = raw_df[0].str.split(',', expand=True)
-        
-    # กรณีที่มีหัวตารางติดมา ให้ลบแถวแรกที่เป็นตัวอักษรหัวข้อออก ถ้าแถวนั้นไม่ใช่ตัวเลขราคา
+    # อ่านข้อมูลเข้ามาโดยไม่ระบุคอลัมน์ล่วงหน้า เพื่อให้โหลดผ่านชัวร์ 100%
+    raw_text = response.text
+    
+    # แปลงข้อความดิบให้กลายเป็นตาราง DataFrame
+    lines = [line.split(',') for line in raw_text.strip().split('\n')]
+    
+    # แปลงเป็นตาราง
+    df_parsed = pd.DataFrame(lines)
+    
+    # ตรวจสอบและตัดแถวหัวข้อออกหากมีตัวอักษรปนมาในแถวแรก
     try:
-        float(raw_df.iloc[0, 2])
+        float(df_parsed.iloc[0, 2])
     except:
-        raw_df = raw_df.iloc[1:].reset_index(drop=True)
+        df_parsed = df_parsed.iloc[1:].reset_index(drop=True)
         
-    # ตั้งชื่อคอลัมน์ทั้ง 8 ให้เป็นมาตรฐานที่ระบบเข้าใจแน่วแน่
-    raw_df.columns = ['Date', 'TimeZoneForex', 'Open', 'High', 'Low', 'Close', 'Volume', 'TimeZoneThai']
-    return raw_df
+    # คัดเลือกเฉพาะ 8 คอลัมน์แรกตามโครงสร้างจริง ป้องกันคอลัมน์ว่างเกินมาสร้างปัญหา
+    df_parsed = df_parsed.iloc[:, :8]
+    
+    # ตั้งชื่อคอลัมน์มาตรฐานสากลที่ระบบใช้งาน
+    df_parsed.columns = ['Date', 'TimeZoneForex', 'Open', 'High', 'Low', 'Close', 'Volume', 'TimeZoneThai']
+    return df_parsed
 
 try:
-    # เรียกใช้ฟังก์ชันแกะกล่องข้อมูล
-    df = load_data_robust(sheet_url)
+    # เรียกใช้ฟังก์ชันแกะกล่องข้อมูลแบบปลอดภัยสูง
+    df = load_data_final(sheet_url)
     
     # แปลงค่าราคาให้เป็นตัวเลขทศนิยมเพื่อใช้ในการคำนวณจุด
     df['Open'] = pd.to_numeric(df['Open'], errors='coerce')
@@ -91,7 +106,7 @@ try:
             high=df['High'],
             low=df['Low'],
             close=df['Close'],
-            increasing_line_color='#26a69a',  # ขึ้น = เขียวมินต์
+            increasing_line_color='#26a69a',  # ขึ้น = สีเขียวมินต์
             decreasing_line_color='#ef5350',  # ลง = แดงสด
             name="Candle"
         )])
@@ -113,8 +128,7 @@ try:
         display_df = df[['TimeZoneThai', 'Open', 'High', 'Low', 'Close', 'Buy Target (100 pts) at', 'Sell Target (100 pts) at']]
         st.dataframe(display_df, height=560, use_container_width=True)
 
-    st.success("✨ ดึงข้อมูลและแตกคอลัมน์สำเร็จ! แสดงผลเรียบร้อยครับ")
+    st.success("✨ ล้างแคชเวอร์ชันเก่าทิ้งสำเร็จ! ระบบแสดงผลตามข้อมูลจริงเรียบร้อยครับ")
 
 except Exception as e:
     st.error(f"❌ เกิดข้อผิดพลาดในการโหลดข้อมูล: {e}")
-
