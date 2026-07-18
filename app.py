@@ -8,7 +8,7 @@ import json
 st.set_page_config(layout="wide", page_title="Forex Live Chart Pro")
 
 st.title("📊 Forex Pro Candlestick & Trend Analyzer")
-st.subheader("แสดงผลเวลาชนะ 100 จุด บนหัวแท่งเทียนโดยตรง (จิ้มเพื่อล็อกแท่งค้างดูเทรนด์)")
+st.subheader("แสดงผลเวลาแท่ง และเวลาชนะ 100 จุด บนหัวแท่งเทียนโดยตรง (จิ้มเพื่อล็อกแท่งค้างดูเทรนด์)")
 
 # ลิงก์ดึงข้อมูล CSV ของชีท Master
 sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv"
@@ -69,14 +69,15 @@ try:
     df['Buy Target (100 pts) at'] = high_targets
     df['Sell Target (100 pts) at'] = low_targets
 
-    # 3. เตรียมข้อมูลแปลงเป็น JSON เพื่อป้อนเข้าสู่เอนจิ้น JavaScript สั่งการกราฟ
+    # 3. เตรียมข้อมูลแปลงเป็น JSON (เพิ่มตัวแปรเวลาของแท่งเทียนลงไปบนป้าย)
     chart_data = []
     for idx, row in df.iterrows():
+        self_time = f"T:{row['TimeZoneThai']}" # เวลาตัวมันเอง
         buy_res = f"B:{row['Buy Target (100 pts) at']}" if row['Buy Target (100 pts) at'] != "-" else "B:No"
         sell_res = f"S:{row['Sell Target (100 pts) at']}" if row['Sell Target (100 pts) at'] != "-" else "S:No"
         
-        # นำเวลาชนะ Buy/Sell ไปรวมกันเพื่อเอาไปแสดงผลบนหัวแท่งเทียน
-        label_text = f"{buy_res}<br>{sell_res}"
+        # ประกอบร่างป้าย 3 บรรทัด (เวลาแท่ง -> เวลา Buy -> เวลา Sell)
+        label_text = f"{self_time}<br>{buy_res}<br>{sell_res}"
         
         chart_data.append({
             'time': row['TimeZoneThai'],
@@ -89,10 +90,10 @@ try:
     
     json_data = json.dumps(chart_data)
 
-    # 4. เขียนชุดคำสั่ง HTML + JS บังคับให้กราฟวาดข้อความค้างไว้บนหัวแท่งเทียน และสั่งคลิกล็อกค้าง
+    # 4. เขียนชุดคำสั่ง HTML + JS บังคับให้กราฟวาดข้อความค้างไว้บนหัวแท่งเทียน
     html_code = f"""
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
-    <div id="chart-container" style="width: 100%; height: 600px;"></div>
+    <div id="chart-container" style="width: 100%; height: 620px;"></div>
     
     <script>
         const rawData = {json_data};
@@ -114,14 +115,14 @@ try:
             name: 'Forex'
         }};
         
-        // 2. ตัวเลเยอร์พิเศษโชว์ค่าข้อความ Buy/Sell ลอยอยู่บนจุด High ของแต่ละแท่งแบบถาวร
+        // 2. ตัวเลเยอร์พิเศษโชว์ค่าข้อความ T:เวลา / B:เวลา / S:เวลา ลอยอยู่บนจุด High
         const traceLabels = {{
             x: xData,
-            y: highData.map(h => h + 0.0001), // ยกข้อความให้อยู่เหนือกราฟเล็กน้อยไม่ให้ทับไส้เทียน
+            y: highData.map(h => h + 0.0001), 
             mode: 'text',
             text: textLabels,
             textposition: 'top center',
-            textfont: {{color: '#00ffcc', size: 10, family: 'sans-serif'}},
+            textfont: {{color: '#00ffcc', size: 9, family: 'sans-serif'}},
             hoverinfo: 'none',
             showlegend: false
         }};
@@ -133,7 +134,6 @@ try:
             yaxis: {{gridcolor: '#222', tickcolor: '#fff', color: '#fff'}},
             plot_bgcolor: '#111',
             paper_bgcolor: '#111',
-            // สร้างรูปทรงสำหรับใช้ไฮไลต์เวลาคลิกจิ้มแท่งเทียน
             shapes: []
         }};
         
@@ -142,12 +142,11 @@ try:
         
         Plotly.newPlot(chartDiv, [traceCandle, traceLabels], layout, config);
         
-        // 3. ระบบคลิกแล้ว "สร้างเส้นประไฮไลต์ล็อกค้างไว้ที่แท่งนั้น" เพื่อวิเคราะห์เทรนด์เชิงลึก
+        // 3. ระบบคลิกแล้วสร้างเส้นประไฮไลต์ล็อกค้างไว้ที่แท่งนั้น
         chartDiv.on('plotly_click', function(data){{
             if(!data || !data.points) return;
             const clickedX = data.points[0].x;
             
-            // วาดเส้นประไฮไลต์แนวตั้งสีเหลืองเรืองแสง ล็อกค้างไว้ที่ตำแหน่งแท่งเทียนที่ถูกคลิก
             const highlightShape = {{
                 type: 'line',
                 x0: clickedX,
@@ -162,15 +161,14 @@ try:
                 }}
             }};
             
-            // สั่งอัปเดตกราฟทันที เส้นจะล็อกอยู่ตรงนั้นไม่หายไปจนกว่าจะจิ้มแท่งใหม่เพื่อย้ายเทรนด์
             Plotly.relayout(chartDiv, {{shapes: [highlightShape]}});
         }});
     </script>
     """
     
     # รันโค้ดลงเว็บ
-    components.html(html_code, height=620, scrolling=False)
-    st.info("💡 ทริกบนมือถือ: จิ้มเลือกที่แท่งเทียนเพื่อล็อกเส้นประสีเหลืองมาร์คตำแหน่งสำหรับวิเคราะห์เทรนด์เชิงลึกได้ทันที ค่า Buy / Sell จะโชว์อยู่บนหัวแท่งเทียนตลอดเวลาครับ")
+    components.html(html_code, height=640, scrolling=False)
+    st.info("💡 ข้อมูลบนหัวแท่งเทียน: T = เวลาตัวมันเอง | B = เวลาชนะ Buy | S = เวลาชนะ Sell")
 
 except Exception as err:
     st.error(f"❌ เกิดข้อผิดพลาดในระบบตรวจจับตาราง: {err}")
