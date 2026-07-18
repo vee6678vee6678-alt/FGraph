@@ -1,134 +1,98 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import requests
 import io
 
-# 1. ตั้งค่าหน้าเว็บให้แสดงแบบกว้างเต็มจอ
 st.set_page_config(layout="wide")
+st.title("📊 Forex Candlestick & Target 100 Points Analyzer")
+st.subheader("วิเคราะห์แท่งเทียนและคำนวณเป้าหมาย 100 จุด (เวลาไทย)")
 
-# สั่งล้างแคชระบบ Streamlit ทุกรอบที่มีการเปิดหน้าเว็บ เพื่อป้องกันการจำโค้ดเก่าที่มี Error
-st.cache_data.clear()
+# ข้อมูลจริง 48 แท่งจากตาราง Google Sheet ของคุณวีรพันธ์
+data_str = """16.07.2026,0:00,1.14697,1.1474,1.14691,1.14717,658,7:00
+16.07.2026,0:30,1.14718,1.14747,1.14674,1.14737,933,7:30
+16.07.2026,1:00,1.14735,1.14741,1.14687,1.14696,797,8:00
+16.07.2026,1:30,1.14696,1.14709,1.14651,1.1466,702,8:30
+16.07.2026,2:00,1.1466,1.1466,1.14603,1.14644,655,9:00
+16.07.2026,2:30,1.14645,1.14652,1.14616,1.14648,510,9:30
+16.07.2026,3:00,1.14648,1.14683,1.14633,1.14679,489,10:00
+16.07.2026,3:30,1.14679,1.14689,1.14655,1.14665,399,10:30
+16.07.2026,4:00,1.14666,1.14666,1.1463,1.14632,409,11:00
+16.07.2026,4:30,1.14632,1.14673,1.14632,1.14663,405,11:30
+16.07.2026,5:00,1.14663,1.14685,1.14656,1.14666,437,12:00
+16.07.2026,5:30,1.14666,1.14689,1.14624,1.14635,699,12:30
+16.07.2026,6:00,1.14637,1.14695,1.14634,1.14682,979,13:00
+16.07.2026,6:30,1.14681,1.14709,1.14651,1.14683,846,13:30
+16.07.2026,7:00,1.14686,1.14725,1.14668,1.14693,973,14:00
+16.07.2026,7:30,1.14693,1.14764,1.14672,1.14693,1013,14:30
+16.07.2026,8:00,1.14691,1.14718,1.14626,1.14649,1079,15:00
+16.07.2026,8:30,1.1465,1.14683,1.14629,1.1466,905,15:30
+16.07.2026,9:00,1.1466,1.1467,1.14629,1.14634,805,16:00
+16.07.2026,9:30,1.14634,1.14684,1.14607,1.14662,851,16:30
+16.07.2026,10:00,1.14662,1.14684,1.14644,1.14655,649,17:00
+16.07.2026,10:30,1.14654,1.14665,1.14595,1.14601,789,17:30
+16.07.2026,11:00,1.14599,1.14631,1.14582,1.14603,896,18:00
+16.07.2026,11:30,1.14601,1.1469,1.14565,1.14686,1452,18:30
+16.07.2026,12:00,1.14685,1.14706,1.146,1.14635,1395,19:00
+16.07.2026,12:30,1.14635,1.1465,1.14471,1.14477,1740,19:30
+16.07.2026,13:00,1.14479,1.14583,1.14446,1.14581,1380,20:00
+16.07.2026,13:30,1.14583,1.14591,1.14498,1.145,1504,20:30
+16.07.2026,14:00,1.14499,1.1454,1.14451,1.14493,1365,21:00
+16.07.2026,14:30,1.14495,1.14524,1.14401,1.1443,1444,21:30
+16.07.2026,15:00,1.14428,1.14441,1.14365,1.14406,1282,22:00
+16.07.2026,15:30,1.14405,1.14496,1.14399,1.14469,936,22:30
+16.07.2026,16:00,1.14469,1.14471,1.14357,1.14362,1015,23:00
+16.07.2026,16:30,1.14363,1.14388,1.14342,1.14349,758,23:30
+16.07.2026,17:00,1.14349,1.14354,1.1431,1.14353,745,0:00
+16.07.2026,17:30,1.14353,1.14385,1.14325,1.14364,613,0:30
+16.07.2026,18:00,1.14366,1.14392,1.1435,1.14366,658,1:00
+16.07.2026,18:30,1.14366,1.14389,1.14358,1.14386,542,1:30
+16.07.2026,19:00,1.14384,1.14399,1.14343,1.14352,586,2:00
+16.07.2026,19:30,1.14353,1.14416,1.14352,1.14404,596,2:30
+16.07.2026,20:00,1.14402,1.1442,1.14385,1.14397,318,3:00
+16.07.2026,20:30,1.14397,1.14443,1.14394,1.14429,364,3:30
+16.07.2026,21:00,1.14429,1.14431,1.14409,1.14416,143,4:00
+16.07.2026,21:30,1.14418,1.14425,1.14404,1.14424,157,4:30
+16.07.2026,22:00,1.14428,1.1445,1.14427,1.14438,215,5:00
+16.07.2026,22:30,1.14438,1.14441,1.14422,1.14432,123,5:30
+16.07.2026,23:00,1.14433,1.14455,1.14426,1.14448,207,6:00
+16.07.2026,23:30,1.14448,1.14465,1.14442,1.14444,174,6:30"""
 
-st.title("📊 Forex Candlestick & Target 100 Points Analyzer (Live Data)")
-st.subheader("วิเคราะห์แท่งเทียนและคำนวณเป้าหมาย 100 จุด ดึงข้อมูลสดจาก Google Sheet")
+columns = ['Date', 'TimeZoneForex', 'Open', 'High', 'Low', 'Close', 'Volume', 'TimeZoneThai']
+df = pd.read_csv(io.StringIO(data_str), names=columns)
 
-# ลิงก์ดึงข้อมูล CSV ของชีท Master
-sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv&gid=1014151853"
+high_targets = []
+low_targets = []
 
-def load_data_final(url):
-    # ใช้ requests ไปดาวน์โหลดข้อมูลดิบตรงๆ จาก Google Sheet ป้องกันการล็อกพารามิเตอร์
-    response = requests.get(url)
-    response.encoding = 'utf-8'
-    
-    # อ่านข้อมูลเข้ามาโดยไม่ระบุคอลัมน์ล่วงหน้า เพื่อให้โหลดผ่านชัวร์ 100%
-    raw_text = response.text
-    
-    # แปลงข้อความดิบให้กลายเป็นตาราง DataFrame
-    lines = [line.split(',') for line in raw_text.strip().split('\n')]
-    
-    # แปลงเป็นตาราง
-    df_parsed = pd.DataFrame(lines)
-    
-    # ตรวจสอบและตัดแถวหัวข้อออกหากมีตัวอักษรปนมาในแถวแรก
-    try:
-        float(df_parsed.iloc[0, 2])
-    except:
-        df_parsed = df_parsed.iloc[1:].reset_index(drop=True)
-        
-    # คัดเลือกเฉพาะ 8 คอลัมน์แรกตามโครงสร้างจริง ป้องกันคอลัมน์ว่างเกินมาสร้างปัญหา
-    df_parsed = df_parsed.iloc[:, :8]
-    
-    # ตั้งชื่อคอลัมน์มาตรฐานสากลที่ระบบใช้งาน
-    df_parsed.columns = ['Date', 'TimeZoneForex', 'Open', 'High', 'Low', 'Close', 'Volume', 'TimeZoneThai']
-    return df_parsed
+for i in range(len(df)):
+    open_price = df.loc[i, 'Open']
+    h_time, l_time = "-", "-"
+    for j in range(i, len(df)):
+        pts_high = (df.loc[j, 'High'] - open_price) * 100000
+        pts_low = (open_price - df.loc[j, 'Low']) * 100000
+        if h_time == "-" and pts_high >= 100:
+            h_time = df.loc[j, 'TimeZoneThai']
+        if l_time == "-" and pts_low >= 100:
+            l_time = df.loc[j, 'TimeZoneThai']
+        if h_time != "-" and l_time != "-":
+            break
+    high_targets.append(h_time)
+    low_targets.append(l_time)
 
-try:
-    # เรียกใช้ฟังก์ชันแกะกล่องข้อมูลแบบปลอดภัยสูง
-    df = load_data_final(sheet_url)
-    
-    # แปลงค่าราคาให้เป็นตัวเลขทศนิยมเพื่อใช้ในการคำนวณจุด
-    df['Open'] = pd.to_numeric(df['Open'], errors='coerce')
-    df['High'] = pd.to_numeric(df['High'], errors='coerce')
-    df['Low'] = pd.to_numeric(df['Low'], errors='coerce')
-    df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
-    
-    # ลบแถวที่เป็นค่าว่างออกเพื่อป้องกันการคำนวณผิดพลาด
-    df = df.dropna(subset=['Open', 'High', 'Low', 'Close'])
-    df = df.reset_index(drop=True)
+df['Buy Target (100 pts) at'] = high_targets
+df['Sell Target (100 pts) at'] = low_targets
 
-    # 3. ลอจิกการคำนวณหาเวลาที่ชนเป้าหมาย 100 จุดจากราคา Open
-    high_targets = []
-    low_targets = []
+col1, col2 = st.columns([3, 2])
+with col1:
+    st.markdown("### 📈 กราฟแท่งเทียน (Candlestick Chart)")
+    fig = go.Figure(data=[go.Candlestick(
+        x=df['TimeZoneThai'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
+        increasing_line_color='#26a69a', decreasing_line_color='#ef5350', name="Candle"
+    )])
+    fig.update_layout(xaxis_rangeslider_visible=False, height=550, template="plotly_dark")
+    st.plotly_chart(fig, use_container_width=True)
 
-    for i in range(len(df)):
-        open_price = df.loc[i, 'Open']
-        high_reached_time = "-"
-        low_reached_time = "-"
-        
-        # วิ่งหาแท่งถัด ๆ ไปเพื่อเช็กว่าสะสมครบ 100 จุดตอนไหน
-        for j in range(i, len(df)):
-            current_high = df.loc[j, 'High']
-            current_low = df.loc[j, 'Low']
-            
-            # คำนวณระยะจุด (สูตรคูณ 100000 ตามที่คุณวีรพันธ์ระบุ)
-            points_to_high = (current_high - open_price) * 100000
-            points_to_low = (open_price - current_low) * 100000
-            
-            # เช็กเวลาเป้าหมายฝั่ง Buy (High)
-            if high_reached_time == "-" and points_to_high >= 100:
-                high_reached_time = str(df.loc[j, 'TimeZoneThai'])
-                
-            # เช็กเวลาเป้าหมายฝั่ง Sell (Low)
-            if low_reached_time == "-" and points_to_low >= 100:
-                low_reached_time = str(df.loc[j, 'TimeZoneThai'])
-                
-            if high_reached_time != "-" and low_reached_time != "-":
-                break
-                
-        high_targets.append(high_reached_time)
-        low_targets.append(low_reached_time)
+with col2:
+    st.markdown("### 📋 ตารางสรุปเวลาเป้าหมาย 100 จุด")
+    show_cols = ['TimeZoneThai', 'Open', 'High', 'Low', 'Close', 'Buy Target (100 pts) at', 'Sell Target (100 pts) at']
+    st.dataframe(df[show_cols], height=500, use_container_width=True)
 
-    # เพิ่มข้อมูลผลลัพธ์ลงตารางหลัก
-    df['Buy Target (100 pts) at'] = high_targets
-    df['Sell Target (100 pts) at'] = low_targets
-
-    # 4. แสดงผลแยกฝั่งซ้าย-ขวาบนหน้าแดชบอร์ด
-    col1, col2 = st.columns([3, 2])
-
-    with col1:
-        st.markdown("### 📈 กราฟแท่งเทียน (Candlestick Chart)")
-        
-        fig = go.Figure(data=[go.Candlestick(
-            x=df['TimeZoneThai'],
-            open=df['Open'],
-            high=df['High'],
-            low=df['Low'],
-            close=df['Close'],
-            increasing_line_color='#26a69a',  # ขึ้น = สีเขียวมินต์
-            decreasing_line_color='#ef5350',  # ลง = แดงสด
-            name="Candle"
-        )])
-        
-        fig.update_layout(
-            xaxis_title="เวลาไทย (TimeZoneThai)",
-            yaxis_title="ราคา (Price)",
-            xaxis_rangeslider_visible=False,
-            height=600,
-            margin=dict(l=10, r=10, t=10, b=10),
-            template="plotly_dark"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        st.markdown("### 📋 ตารางสรุปเวลาเป้าหมาย 100 จุด")
-        st.write("ผลลัพธ์ประมวลผลคำนวณแบบเรียลไทม์จาก Google Sheet:")
-        
-        display_df = df[['TimeZoneThai', 'Open', 'High', 'Low', 'Close', 'Buy Target (100 pts) at', 'Sell Target (100 pts) at']]
-        st.dataframe(display_df, height=560, use_container_width=True)
-
-    st.success("✨ ล้างแคชเวอร์ชันเก่าทิ้งสำเร็จ! ระบบแสดงผลตามข้อมูลจริงเรียบร้อยครับ")
-
-except Exception as e:
-    st.error(f"❌ เกิดข้อผิดพลาดในการโหลดข้อมูล: {e}")
