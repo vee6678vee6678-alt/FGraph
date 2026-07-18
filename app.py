@@ -1,13 +1,12 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# 1. ตั้งค่าหน้าเว็บให้แสดงแบบกว้างเต็มจอ
-st.set_page_config(layout="wide")
+# 1. ตั้งค่าหน้าเว็บให้แสดงผลเต็มพื้นที่จอ (เหมาะกับมือถือมาก)
+st.set_page_config(layout="wide", page_title="Forex Live Chart")
 
-st.title("📊 Forex Candlestick & Target 100 Points Analyzer (Live)")
-st.subheader("วิเคราะห์แท่งเทียนและคำนวณเป้าหมาย 100 จุด ดึงข้อมูลสดจาก Google Sheet อัตโนมัติ")
+st.title("📊 Forex Candlestick & Target 100 Points")
+st.subheader("ดึงข้อมูลสดจาก Google Sheet อัตโนมัติ (เน้นใช้งานบนมือถือ)")
 
 # ลิงก์ดึงข้อมูล CSV ของชีท Master 
 sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv"
@@ -68,54 +67,52 @@ try:
     df['Buy Target (100 pts) at'] = high_targets
     df['Sell Target (100 pts) at'] = low_targets
 
-    # 3. จัดสัดส่วนแสดงผลแดชบอร์ด
-    c1, c2 = st.columns([3, 2])
-
-    with c1:
-        st.markdown("### 📈 กราฟแท่งเทียน (คลิกที่แท่งเพื่อดูเวลาชนะ 100 จุด)")
+    # 3. จัดการแสดงผลกราฟเดี่ยวๆ เต็มจอ (เอาตารางฝั่งขวาออกแล้ว)
+    st.markdown("### 📈 กราฟแท่งเทียน (จิ้มแท่งเทียนเพื่อเปิด/ปิดกล่องสรุปเวลาชนะ)")
+    
+    # ปรับแต่งชุดข้อความป๊อปอัปเมื่อชี้หรือกดเลือก
+    hover_texts = []
+    for idx, row in df.iterrows():
+        buy_result = f"Buy = {row['Buy Target (100 pts) at']}" if row['Buy Target (100 pts) at'] != "-" else "Buy = No"
+        sell_result = f"Sell = {row['Sell Target (100 pts) at']}" if row['Sell Target (100 pts) at'] != "-" else "Sell = No"
         
-        # ปรับแต่งข้อความป๊อปอัปตอนชี้หรือคลิกตามเงื่อนไขของคุณวีรพันธ์
-        hover_texts = []
-        for idx, row in df.iterrows():
-            # แปลงค่าถ้าไม่ชนะ (-) ให้กลายเป็น No ตามบรีฟ
-            buy_result = f"Buy = {row['Buy Target (100 pts) at']}" if row['Buy Target (100 pts) at'] != "-" else "Buy = No"
-            sell_result = f"Sell = {row['Sell Target (100 pts) at']}" if row['Sell Target (100 pts) at'] != "-" else "Sell = No"
-            
-            text = (
-                f"⏰ แท่งเวลาไทย: {row['TimeZoneThai']}<br>"
-                f"--------------------<br>"
-                f"🎯 {buy_result}<br>"
-                f"🎯 {sell_result}<br>"
-                f"--------------------<br>"
-                f"🟢 Open: {row['Open']} | 🔴 Close: {row['Close']}<br>"
-                f"🔼 High: {row['High']} | 🔽 Low: {row['Low']}"
-            )
-            hover_texts.append(text)
-
-        fig = go.Figure(data=[go.Candlestick(
-            x=df['TimeZoneThai'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
-            increasing_line_color='#26a69a', decreasing_line_color='#ef5350', name="Candle",
-            text=hover_texts, hoverinfo='text' # สั่งให้โชว์กล่องข้อความที่เราแต่งเอง
-        )])
-        
-        fig.update_layout(
-            xaxis_title="เวลาไทย (TimeZoneThai)",
-            yaxis_title="ราคา (Price)",
-            xaxis_rangeslider_visible=False, 
-            height=600, 
-            template="plotly_dark",
-            hovermode='x unified',
-            clickmode='event+select'
+        text = (
+            f"⏰ เวลาไทย: {row['TimeZoneThai']}<br>"
+            f"🎯 {buy_result}<br>"
+            f"🎯 {sell_result}<br>"
+            f"🟢 O: {row['Open']} | 🔴 C: {row['Close']}"
         )
-        
-        st.plotly_chart(fig, use_container_width=True)
+        hover_texts.append(text)
 
-    with c2:
-        st.markdown("### 📋 ตารางสรุปเวลาเป้าหมาย 100 จุด")
-        show_cols = ['TimeZoneThai', 'Open', 'High', 'Low', 'Close', 'Buy Target (100 pts) at', 'Sell Target (100 pts) at']
-        st.dataframe(df[show_cols], height=550, use_container_width=True)
+    # วาดกราฟแท่งเทียน
+    fig = go.Figure(data=[go.Candlestick(
+        x=df['TimeZoneThai'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
+        increasing_line_color='#26a69a', decreasing_line_color='#ef5350', name="Candle",
+        text=hover_texts, hoverinfo='text'
+    )])
+    
+    # ปรับแต่งระบบการคลิกและเครื่องมือให้เหมาะกับหน้าจอมือถือ
+    fig.update_layout(
+        xaxis_title="เวลาไทย (TimeZoneThai)",
+        yaxis_title="ราคา (Price)",
+        xaxis_rangeslider_visible=False, 
+        height=650, # ปรับความสูงกราฟให้พอดีกับหน้าจอมือถือแนวตั้ง
+        template="plotly_dark",
+        hovermode='closest', # ให้โชว์ดีเทลเฉพาะแท่งที่เมาส์จิ้มตรงๆ
+        clickmode='event+select', # คลิกแล้วล็อกค้างไว้ได้
+        margin=dict(l=10, r=10, t=20, b=20) # บีบขอบซ้ายขวาให้จอกราฟกว้างที่สุดบนมือถือ
+    )
+    
+    # ปรับปรุงแถบเครื่องมือด่วนด้านบนกราฟ (สั่งโชว์ปุ่มกากบาทเพื่อปิดกล่องข้อความได้อิสระ)
+    fig.update_traces(
+        selectedpoints=None,
+        selector=dict(type='candlestick')
+    )
+    
+    # เปิดการแสดงผลกราฟแบบ Responsive ขยายตามจอมือถืออัตโนมัติ
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True, 'modeBarButtonsToRemove': ['lasso2d', 'select2d']})
 
-    st.success("✨ อัปเดตระบบมาร์คเวลาเป้าหมาย 100 จุดบนกราฟแท่งเทียนเรียบร้อยครับ!")
+    st.success("✨ ปรับแต่งโหมดมือถือ กราฟเต็มจอเรียบร้อยแล้วครับ!")
 
 except Exception as err:
     st.error(f"❌ เกิดข้อผิดพลาดในระบบตรวจจับตาราง: {err}")
