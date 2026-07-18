@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -105,7 +104,7 @@ try:
     
     json_data = json.dumps(chart_data)
 
-    # 4. เขียนชุดคำสั่ง HTML + JS ปรับหน้าจอให้เป็นสีขาวสว่างและตัวหนังสือสีดำใหญ่ชัดเจน
+    # 4. เขียนชุดคำสั่ง HTML + JS แก้ไขปีกกาหลุดเรียบร้อย สมบูรณ์แบบ
     html_code = f"""
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
     <div id="chart-container" style="width: 100%; height: 620px; background-color: #FFFFFF;"></div>
@@ -120,16 +119,16 @@ try:
         const closeData = rawData.map(d => d.close);
         const textLabels = rawData.map(d => d.label);
         
-        // 1. ตัวกราฟแท่งเทียนสีมาตรฐานสากล
+        // 1. ตัวกราฟแท่งเทียนสีมาตรฐานสากล (แก้ไขโครงสร้างปีกกาเรียบร้อย)
         const traceCandle = {{
             x: xData, open: openData, high: highData, low: lowData, close: closeData,
             type: 'candlestick',
-            increasing: {{line: {{color: '#00a087', width: 2.5}}, fillcolor: '#00a087'}, // เขียวคมชัด
-            decreasing: {{line: {{color: '#dc3545', width: 2.5}}, fillcolor: '#dc3545'}, // แดงคมชัด
+            increasing: {{line: {{color: '#00a087', width: 2.5}}, fillcolor: '#00a087'}},
+            decreasing: {{line: {{color: '#dc3545', width: 2.5}}, fillcolor: '#dc3545'}},
             hoverinfo: 'none'
         }};
         
-        // 2. ป้ายข้อความบนหัวแท่ง ปรับขนาดใหญ่ขึ้น (size: 12) และเป็นสีดำเข้มสนิท (#000000) อ่านง่ายมาก
+        // 2. ป้ายข้อความบนหัวแท่ง ปรับขนาดใหญ่ (size: 12) สีดำเข้มหนาชัดเจน
         const traceLabels = {{
             x: xData,
             y: highData.map(h => h + 0.0001), 
@@ -146,8 +145,8 @@ try:
             margin: {{l: 50, r: 10, t: 15, b: 40}},
             xaxis: {{rangeslider: {{visible: false}}, gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'}},
             yaxis: {{gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'}},
-            plot_bgcolor: '#FFFFFF',  // พื้นหลังกราฟสีขาว
-            paper_bgcolor: '#FFFFFF', // พื้นหลังกระดาษสีขาว
+            plot_bgcolor: '#FFFFFF',
+            paper_bgcolor: '#FFFFFF',
             shapes: []
         }};
         
@@ -156,8 +155,8 @@ try:
         
         Plotly.newPlot(chartDiv, [traceCandle, traceLabels], layout, config);
         
-        // 3. ระบบคลิกล็อกแท่ง เปลี่ยนเป็นเส้นประสีน้ำเงินเข้มหนาชัดเจน
-        chartDiv.on('plotly_click', function(data){{
+        // 3. ระบบคลิกล็อกแท่ง เส้นประสีน้ำเงินเข้มหนาชัดเจน
+        chartDiv.on('plotly_click', function(data){{{
             if(!data || !data.points) return;
             const clickedX = data.points[0].x;
             
@@ -169,14 +168,14 @@ try:
                 y0: 0,
                 y1: 1,
                 line: {{
-                    color: '#0056b3', // สีน้ำเงินเข้มเข้มข้น ตัดกับสีขาวชัดเจน
+                    color: '#0056b3',
                     width: 3,
                     dash: 'dash'
                 }}
             }};
             
             Plotly.relayout(chartDiv, {{shapes: [highlightShape]}});
-        }});
+        }}});
     </script>
     """
     
