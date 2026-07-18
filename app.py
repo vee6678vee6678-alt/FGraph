@@ -11,25 +11,27 @@ st.subheader("วิเคราะห์แท่งเทียนและค
 # ลิงก์ดึงข้อมูล CSV ของชีท Master
 sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv&gid=1014151853"
 
-# ใช้ตรรกะไม่อ่านแคชค้างคืน เพื่อดึงค่าสดใหม่จริง ๆ เสมอ
-def load_data_fresh(url):
-    # ดึงข้อมูลมาเป็น DataFrame ตรงๆ
-    raw_df = pd.read_csv(url)
+def load_data_robust(url):
+    # อ่านข้อมูลดิบทั้งหมดเข้ามาเป็นตัวอักษรก่อน
+    raw_df = pd.read_csv(url, header=None)
     
-    # ล้างช่องว่างที่หัวตารางออกทั้งหมด
-    raw_df.columns = raw_df.columns.str.strip().str.replace(' ', '')
-    
-    # บังคับว่าถ้าหาชื่อคอลัมน์ไม่เจอ ให้แมตช์ตามลำดับจริงในตารางเลย (ป้องกัน Error เรื่องชื่อ)
-    if 'Open' not in raw_df.columns:
-        # กำหนดชื่อคอลัมน์ให้ใหม่ตามลำดับ A, B, C, D, E, F, G, H จากไฟล์ดึงใหม่
-        raw_df = pd.read_csv(url, skiprows=1, header=None)
-        raw_df.columns = ['Date', 'TimeZoneForex', 'Open', 'High', 'Low', 'Close', 'Volume', 'TimeZoneThai']
+    # กรณีพิเศษ: ถ้าระบบส่งข้อมูลมาเป็นคอลัมน์เดียวพืด ให้แตกคอลัมน์ด้วยเครื่องหมายคอมมา ,
+    if raw_df.shape[1] == 1:
+        raw_df = raw_df[0].str.split(',', expand=True)
         
+    # กรณีที่มีหัวตารางติดมา ให้ลบแถวแรกที่เป็นตัวอักษรหัวข้อออก ถ้าแถวนั้นไม่ใช่ตัวเลขราคา
+    try:
+        float(raw_df.iloc[0, 2])
+    except:
+        raw_df = raw_df.iloc[1:].reset_index(drop=True)
+        
+    # ตั้งชื่อคอลัมน์ทั้ง 8 ให้เป็นมาตรฐานที่ระบบเข้าใจแน่วแน่
+    raw_df.columns = ['Date', 'TimeZoneForex', 'Open', 'High', 'Low', 'Close', 'Volume', 'TimeZoneThai']
     return raw_df
 
 try:
-    # เรียกใช้ฟังก์ชันดึงข้อมูลสด
-    df = load_data_fresh(sheet_url)
+    # เรียกใช้ฟังก์ชันแกะกล่องข้อมูล
+    df = load_data_robust(sheet_url)
     
     # แปลงค่าราคาให้เป็นตัวเลขทศนิยมเพื่อใช้ในการคำนวณจุด
     df['Open'] = pd.to_numeric(df['Open'], errors='coerce')
@@ -37,7 +39,7 @@ try:
     df['Low'] = pd.to_numeric(df['Low'], errors='coerce')
     df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
     
-    # ลบแถวที่เป็นค่าว่างออกเพื่อป้องกัน Error
+    # ลบแถวที่เป็นค่าว่างออกเพื่อป้องกันการคำนวณผิดพลาด
     df = df.dropna(subset=['Open', 'High', 'Low', 'Close'])
     df = df.reset_index(drop=True)
 
@@ -89,8 +91,8 @@ try:
             high=df['High'],
             low=df['Low'],
             close=df['Close'],
-            increasing_line_color='#26a69a',  # ขึ้น = เขียว
-            decreasing_line_color='#ef5350',  # ลง = แดง
+            increasing_line_color='#26a69a',  # ขึ้น = เขียวมินต์
+            decreasing_line_color='#ef5350',  # ลง = แดงสด
             name="Candle"
         )])
         
@@ -111,9 +113,8 @@ try:
         display_df = df[['TimeZoneThai', 'Open', 'High', 'Low', 'Close', 'Buy Target (100 pts) at', 'Sell Target (100 pts) at']]
         st.dataframe(display_df, height=560, use_container_width=True)
 
-    st.success("✨ ล้างแคชเก่าสำเร็จ ดึงข้อมูลจริงจากหน้า Google Sheet มาแสดงผลเรียบร้อยครับ!")
+    st.success("✨ ดึงข้อมูลและแตกคอลัมน์สำเร็จ! แสดงผลเรียบร้อยครับ")
 
 except Exception as e:
     st.error(f"❌ เกิดข้อผิดพลาดในการโหลดข้อมูล: {e}")
-
 
