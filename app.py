@@ -1,6 +1,3 @@
-
-
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -14,18 +11,25 @@ st.subheader("วิเคราะห์แท่งเทียนและค
 # ลิงก์ดึงข้อมูล CSV ของชีท Master
 sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv&gid=1014151853"
 
-@st.cache_data(ttl=5)  # อัปเดตข้อมูลไวขึ้นทุกๆ 5 วินาทีเมื่อกดรีเฟรช
-def load_data(url):
-    df = pd.read_csv(url)
-    # ล้างช่องว่าง (Spacebar) ในชื่อหัวคอลัมน์ทั้งหมดออกเพื่อป้องกันชื่อไม่ตรง
-    df.columns = df.columns.str.replace(' ', '')
-    return df
+# ใช้ตรรกะไม่อ่านแคชค้างคืน เพื่อดึงค่าสดใหม่จริง ๆ เสมอ
+def load_data_fresh(url):
+    # ดึงข้อมูลมาเป็น DataFrame ตรงๆ
+    raw_df = pd.read_csv(url)
+    
+    # ล้างช่องว่างที่หัวตารางออกทั้งหมด
+    raw_df.columns = raw_df.columns.str.strip().str.replace(' ', '')
+    
+    # บังคับว่าถ้าหาชื่อคอลัมน์ไม่เจอ ให้แมตช์ตามลำดับจริงในตารางเลย (ป้องกัน Error เรื่องชื่อ)
+    if 'Open' not in raw_df.columns:
+        # กำหนดชื่อคอลัมน์ให้ใหม่ตามลำดับ A, B, C, D, E, F, G, H จากไฟล์ดึงใหม่
+        raw_df = pd.read_csv(url, skiprows=1, header=None)
+        raw_df.columns = ['Date', 'TimeZoneForex', 'Open', 'High', 'Low', 'Close', 'Volume', 'TimeZoneThai']
+        
+    return raw_df
 
 try:
-    df = load_data(sheet_url)
-    
-    # ดึงรายชื่อคอลัมน์ที่ล้าง spacebar เรียบร้อยแล้วมาใช้
-    # คอลัมน์ที่ต้องการ: Date, TimeZoneForex, Open, High, Low, Close, Volume, TimeZoneThai
+    # เรียกใช้ฟังก์ชันดึงข้อมูลสด
+    df = load_data_fresh(sheet_url)
     
     # แปลงค่าราคาให้เป็นตัวเลขทศนิยมเพื่อใช้ในการคำนวณจุด
     df['Open'] = pd.to_numeric(df['Open'], errors='coerce')
@@ -51,15 +55,15 @@ try:
             current_high = df.loc[j, 'High']
             current_low = df.loc[j, 'Low']
             
-            # คำนวณระยะจุด (Open เทียบกับ High/Low ของแต่ละแท่งถัดไป)
+            # คำนวณระยะจุด (สูตรคูณ 100000 ตามที่คุณวีรพันธ์ระบุ)
             points_to_high = (current_high - open_price) * 100000
             points_to_low = (open_price - current_low) * 100000
             
-            # เช็กเวลาเป้าหมายฝั่ง Buy (High) โดยใช้คอลัมน์ TimeZoneThai
+            # เช็กเวลาเป้าหมายฝั่ง Buy (High)
             if high_reached_time == "-" and points_to_high >= 100:
                 high_reached_time = str(df.loc[j, 'TimeZoneThai'])
                 
-            # เช็กเวลาเป้าหมายฝั่ง Sell (Low) โดยใช้คอลัมน์ TimeZoneThai
+            # เช็กเวลาเป้าหมายฝั่ง Sell (Low)
             if low_reached_time == "-" and points_to_low >= 100:
                 low_reached_time = str(df.loc[j, 'TimeZoneThai'])
                 
@@ -79,15 +83,14 @@ try:
     with col1:
         st.markdown("### 📈 กราฟแท่งเทียน (Candlestick Chart)")
         
-        # วาดกราฟโดยแกน X อ้างอิงเวลาไทยจากคอลัมน์ TimeZoneThai
         fig = go.Figure(data=[go.Candlestick(
             x=df['TimeZoneThai'],
             open=df['Open'],
             high=df['High'],
             low=df['Low'],
             close=df['Close'],
-            increasing_line_color='#26a69a',  # กราฟขึ้น = สีเขียวมินต์
-            decreasing_line_color='#ef5350',  # กราฟลง = สีแดงสด
+            increasing_line_color='#26a69a',  # ขึ้น = เขียว
+            decreasing_line_color='#ef5350',  # ลง = แดง
             name="Candle"
         )])
         
@@ -105,16 +108,12 @@ try:
         st.markdown("### 📋 ตารางสรุปเวลาเป้าหมาย 100 จุด")
         st.write("ผลลัพธ์ประมวลผลคำนวณแบบเรียลไทม์จาก Google Sheet:")
         
-        # เลือกคอลัมน์สำคัญรวมทั้งเวลาไทยมาโชว์บนตารางฝั่งขวา
         display_df = df[['TimeZoneThai', 'Open', 'High', 'Low', 'Close', 'Buy Target (100 pts) at', 'Sell Target (100 pts) at']]
-        
-        st.dataframe(
-            display_df,
-            height=560,
-            use_container_width=True
-        )
+        st.dataframe(display_df, height=560, use_container_width=True)
 
-    st.success("✨ หน้าแดชบอร์ดดึงข้อมูลสดและคำนวณเรียบร้อยแล้วครับ!")
+    st.success("✨ ล้างแคชเก่าสำเร็จ ดึงข้อมูลจริงจากหน้า Google Sheet มาแสดงผลเรียบร้อยครับ!")
 
 except Exception as e:
     st.error(f"❌ เกิดข้อผิดพลาดในการโหลดข้อมูล: {e}")
+
+
