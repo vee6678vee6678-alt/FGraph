@@ -22,7 +22,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("📊 Forex Pro Candlestick & Trend Analyzer")
-st.subheader("แสดงผลเวลาแท่ง และเวลาชนะ 100 จุด บนหัวแท่งเทียนโดยตรง (โหมดพื้นหลังขาว คมชัดสูง)")
+st.subheader("แสดงผลเวลาแท่ง และเวลาชนะ 100 จุด สลับฟันปลา บน-ล่าง (แก้ปัญหาป้ายทับกัน)")
 
 # ลิงก์ดึงข้อมูล CSV ของชีท Master
 sheet_url = "https://docs.google.com/spreadsheets/d/1PF1KT4G9NDeVsleFhjR9YIYCYvhJ7Xq8yilUyNrmVYk/export?format=csv"
@@ -83,7 +83,7 @@ try:
     df['Buy Target (100 pts) at'] = high_targets
     df['Sell Target (100 pts) at'] = low_targets
 
-    # 3. เตรียมข้อมูลแปลงเป็น JSON (ข้อความตัวใหญ่ คมชัด)
+    # 3. เตรียมข้อมูลแปลงเป็น JSON พร้อมแยกลอจิกสลับฟันปลา บน-ล่าง
     chart_data = []
     for idx, row in df.iterrows():
         self_time = f"T: {row['TimeZoneThai']}" 
@@ -92,24 +92,33 @@ try:
         
         label_text = f"{self_time}<br>{buy_res}<br>{sell_res}"
         
+        # ลоจิกฟันปลา: ถ้าดัชนีเป็นเลขคี่ ให้โชว์ด้านบน (High) ถ้าเลขคู่ให้ดิ่งลงด้านล่าง (Low)
+        if idx % 2 == 0:
+            target_y = float(row['High']) + 0.0001
+            pos_text = "top center"
+        else:
+            target_y = float(row['Low']) - 0.0001
+            pos_text = "bottom center"
+            
         chart_data.append({
             'time': row['TimeZoneThai'],
             'open': row['Open'],
             'high': row['High'],
             'low': row['Low'],
             'close': row['Close'],
-            'label': label_text
+            'label': label_text,
+            'y_pos': target_y,
+            'text_pos': pos_text
         })
     
     json_data = json.dumps(chart_data)
 
-    # 4. ใช้โหมดข้อความดิบ (Raw String) เพื่อไม่ให้ระบบ Python ยุ่งกับปีกกา ป้องกันเออเร่อเด็ดขาด
+    # 4. ใช้โหมดข้อความดิบ (Raw String) เพื่อความชัวร์ ป้องกันปีกกาเออเร่อ
     html_code = r"""
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
     <div id="chart-container" style="width: 100%; height: 620px; background-color: #FFFFFF;"></div>
     
     <script>
-        // ดึงข้อมูลจากฝั่ง Python มาใส่ตัวแปร JS
         const rawData = JSON_DATA_PLACEHOLDER;
         
         const xData = rawData.map(d => d.time);
@@ -117,8 +126,12 @@ try:
         const highData = rawData.map(d => d.high);
         const lowData = rawData.map(d => d.low);
         const closeData = rawData.map(d => d.close);
-        const textLabels = rawData.map(d => d.label);
         
+        const textLabels = rawData.map(d => d.label);
+        const yPositions = rawData.map(d => d.y_pos);
+        const textPositions = rawData.map(d => d.text_pos);
+        
+        // 1. ตัวกราฟแท่งเทียนหลักสีมาตรฐานสากลคมชัดสูง
         const traceCandle = {
             x: xData, open: openData, high: highData, low: lowData, close: closeData,
             type: 'candlestick',
@@ -127,20 +140,21 @@ try:
             hoverinfo: 'none'
         };
         
+        // 2. ป้ายข้อความฟันปลา ปรับขนาดใหญ่พิเศษ (size: 13) และเน้นตัวหนามากเพื่อคนสายตาสั้น/ยาว อ่านง่ายสุดๆ
         const traceLabels = {
             x: xData,
-            y: highData.map(h => h + 0.0001), 
+            y: yPositions, 
             mode: 'text',
             text: textLabels,
-            textposition: 'top center',
-            textfont: {color: '#000000', size: 12, family: 'sans-serif', weight: 'bold'},
+            textposition: textPositions, // โหลดค่าสลับฟันปลา บน/ล่าง จากฝั่ง Python
+            textfont: {color: '#000000', size: 13, family: 'sans-serif', weight: '900'},
             hoverinfo: 'none',
             showlegend: false
         };
         
         const layout = {
             dragmode: 'pan',
-            margin: {l: 50, r: 10, t: 15, b: 40},
+            margin: {l: 50, r: 10, t: 25, b: 40},
             xaxis: {rangeslider: {visible: false}, gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'},
             yaxis: {gridcolor: '#E5E5E5', tickcolor: '#000', color: '#000'},
             plot_bgcolor: '#FFFFFF',
@@ -153,7 +167,7 @@ try:
         
         Plotly.newPlot(chartDiv, [traceCandle, traceLabels], layout, config);
         
-        // ระบบคลิกล็อกแท่ง เส้นประสีน้ำเงินเข้มหนาชัดเจน
+        // 3. ระบบคลิกล็อกแท่ง เส้นประสีน้ำเงินเข้มหนา 3px เห็นจะๆ ตา
         chartDiv.on('plotly_click', function(data){
             if(!data || !data.points) return;
             const clickedX = data.points[0].x;
@@ -175,11 +189,11 @@ try:
             Plotly.relayout(chartDiv, {shapes: [highlightShape]});
         });
     </script>
-    """.replace("JSON_DATA_PLACEHOLDER", json_data) # แทนที่ข้อมูลแบบปลอดภัยแทน f-string
+    """.replace("JSON_DATA_PLACEHOLDER", json_data)
     
     # เรนเดอร์ลงเว็บแอป
     components.html(html_code, height=640, scrolling=False)
-    st.markdown("<p style='color:#000; font-size:15px;'>💡 ข้อมูลบนหัวแท่งเทียน: T = เวลาแท่งเทียน | B = เวลาชนะ Buy | S = เวลาชนะ Sell</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#000; font-size:16px; font-weight:bold;'>💡 วิธีดูฟันปลา: แท่งสลับขึ้นบน / สลับลงล่าง | T = เวลาแท่งเทียน | B = เวลาชนะ Buy | S = เวลาชนะ Sell</p>", unsafe_allow_html=True)
 
 except Exception as err:
     st.error(f"❌ เกิดข้อผิดพลาดในระบบตรวจจับตาราง: {err}")
